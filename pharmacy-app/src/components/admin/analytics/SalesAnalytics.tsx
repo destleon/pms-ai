@@ -9,202 +9,256 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  CircularProgress,
 } from '@mui/material';
+import { API, graphqlOperation } from 'aws-amplify';
+import { listTransactions } from '../../../graphql/queries';
+import { Transaction } from '../../../types/transaction';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
   Tooltip,
   Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import { useSalesContext } from '../../../context/SalesContext';
+  ArcElement,
+} from 'chart.js';
+import { Line, Bar, Pie } from 'react-chartjs-2';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 const SalesAnalytics: React.FC = () => {
-  const { salesData, fetchSalesData } = useSalesContext();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('week');
-  const [chartType, setChartType] = useState('line');
+  const [totalSales, setTotalSales] = useState(0);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [averageTransactionValue, setAverageTransactionValue] = useState(0);
 
   useEffect(() => {
-    fetchSalesData(timeRange);
-  }, [timeRange]);
+    fetchTransactions();
+  }, []);
 
-  const aggregateSalesData = () => {
-    // This would normally process real data from the context
-    // For demo purposes, using sample data
-    return [
-      { date: '2023-01', sales: 4000, profit: 2400, items: 24 },
-      { date: '2023-02', sales: 3000, profit: 1398, items: 22 },
-      { date: '2023-03', sales: 2000, profit: 9800, items: 18 },
-      { date: '2023-04', sales: 2780, profit: 3908, items: 20 },
-      { date: '2023-05', sales: 1890, profit: 4800, items: 15 },
-      { date: '2023-06', sales: 2390, profit: 3800, items: 19 },
-      { date: '2023-07', sales: 3490, profit: 4300, items: 25 },
-    ];
-  };
-
-  const topSellingProducts = [
-    { name: 'Product A', value: 400 },
-    { name: 'Product B', value: 300 },
-    { name: 'Product C', value: 300 },
-    { name: 'Product D', value: 200 },
-  ];
-
-  const renderChart = () => {
-    const data = aggregateSalesData();
-
-    switch (chartType) {
-      case 'line':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="sales" stroke="#8884d8" />
-              <Line type="monotone" dataKey="profit" stroke="#82ca9d" />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="sales" fill="#8884d8" />
-              <Bar dataKey="profit" fill="#82ca9d" />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={topSellingProducts}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                outerRadius={150}
-                fill="#8884d8"
-                dataKey="value"
-                label={({ name, percent }) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
-              >
-                {topSellingProducts.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-      default:
-        return null;
+  const fetchTransactions = async () => {
+    try {
+      const result = await API.graphql(graphqlOperation(listTransactions));
+      const transactionList = result.data.listTransactions;
+      setTransactions(transactionList);
+      calculateMetrics(transactionList);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      setLoading(false);
     }
   };
 
+  const calculateMetrics = (transactionList: Transaction[]) => {
+    const total = transactionList.reduce(
+      (sum, transaction) => sum + transaction.totalAmount,
+      0
+    );
+    setTotalSales(total);
+    setTotalTransactions(transactionList.length);
+    setAverageTransactionValue(total / transactionList.length || 0);
+  };
+
+  const getFilteredData = () => {
+    const now = new Date();
+    const filtered = transactions.filter((transaction) => {
+      const transactionDate = new Date(transaction.transactionDate);
+      switch (timeRange) {
+        case 'week':
+          return now.getTime() - transactionDate.getTime() <= 7 * 24 * 60 * 60 * 1000;
+        case 'month':
+          return now.getTime() - transactionDate.getTime() <= 30 * 24 * 60 * 60 * 1000;
+        case 'year':
+          return now.getTime() - transactionDate.getTime() <= 365 * 24 * 60 * 60 * 1000;
+        default:
+          return true;
+      }
+    });
+    return filtered;
+  };
+
+  const getSalesData = () => {
+    const filtered = getFilteredData();
+    const data = new Map();
+
+    filtered.forEach((transaction) => {
+      const date = new Date(transaction.transactionDate).toLocaleDateString();
+      data.set(date, (data.get(date) || 0) + transaction.totalAmount);
+    });
+
+    return {
+      labels: Array.from(data.keys()),
+      datasets: [
+        {
+          label: 'Sales',
+          data: Array.from(data.values()),
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1,
+        },
+      ],
+    };
+  };
+
+  const getPaymentMethodData = () => {
+    const filtered = getFilteredData();
+    const data = new Map();
+
+    filtered.forEach((transaction) => {
+      data.set(
+        transaction.paymentMethod,
+        (data.get(transaction.paymentMethod) || 0) + transaction.totalAmount
+      );
+    });
+
+    return {
+      labels: Array.from(data.keys()),
+      datasets: [
+        {
+          data: Array.from(data.values()),
+          backgroundColor: [
+            'rgb(255, 99, 132)',
+            'rgb(54, 162, 235)',
+            'rgb(255, 205, 86)',
+          ],
+        },
+      ],
+    };
+  };
+
+  const getTopProducts = () => {
+    const filtered = getFilteredData();
+    const data = new Map();
+
+    filtered.forEach((transaction) => {
+      data.set(
+        transaction.medicineId,
+        (data.get(transaction.medicineId) || 0) + transaction.quantity
+      );
+    });
+
+    const sortedData = new Map(
+      [...data.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    );
+
+    return {
+      labels: Array.from(sortedData.keys()),
+      datasets: [
+        {
+          label: 'Units Sold',
+          data: Array.from(sortedData.values()),
+          backgroundColor: 'rgba(54, 162, 235, 0.5)',
+        },
+      ],
+    };
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-            <FormControl size="small">
-              <InputLabel>Time Range</InputLabel>
-              <Select
-                value={timeRange}
-                label="Time Range"
-                onChange={(e) => setTimeRange(e.target.value)}
-              >
-                <MenuItem value="week">Last Week</MenuItem>
-                <MenuItem value="month">Last Month</MenuItem>
-                <MenuItem value="year">Last Year</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <InputLabel>Chart Type</InputLabel>
-              <Select
-                value={chartType}
-                label="Chart Type"
-                onChange={(e) => setChartType(e.target.value)}
-              >
-                <MenuItem value="line">Line Chart</MenuItem>
-                <MenuItem value="bar">Bar Chart</MenuItem>
-                <MenuItem value="pie">Pie Chart</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Grid>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between' }}>
+        <Typography variant="h5">Sales Analytics</Typography>
+        <FormControl sx={{ minWidth: 120 }}>
+          <InputLabel>Time Range</InputLabel>
+          <Select
+            value={timeRange}
+            label="Time Range"
+            onChange={(e) => setTimeRange(e.target.value)}
+          >
+            <MenuItem value="week">Last Week</MenuItem>
+            <MenuItem value="month">Last Month</MenuItem>
+            <MenuItem value="year">Last Year</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
 
-        <Grid item xs={12} md={8}>
+      <Grid container spacing={3}>
+        {/* Summary Cards */}
+        <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Sales Overview
+              <Typography color="textSecondary" gutterBottom>
+                Total Sales
               </Typography>
-              {renderChart()}
+              <Typography variant="h4">${totalSales.toFixed(2)}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Total Transactions
+              </Typography>
+              <Typography variant="h4">{totalTransactions}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Average Transaction Value
+              </Typography>
+              <Typography variant="h4">${averageTransactionValue.toFixed(2)}</Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Total Sales
-                  </Typography>
-                  <Typography variant="h4">$24,500</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    +15% from last period
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Total Orders
-                  </Typography>
-                  <Typography variant="h4">156</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    +8% from last period
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Average Order Value
-                  </Typography>
-                  <Typography variant="h4">$157.05</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    +5% from last period
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+        {/* Charts */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Sales Trend
+              </Typography>
+              <Line data={getSalesData()} />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Payment Methods
+              </Typography>
+              <Pie data={getPaymentMethodData()} />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Top Selling Products
+              </Typography>
+              <Bar data={getTopProducts()} />
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>

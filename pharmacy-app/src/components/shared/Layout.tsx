@@ -1,155 +1,70 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React from 'react';
+import { styled } from '@mui/material/styles';
 import {
   AppBar,
   Box,
   CssBaseline,
-  Divider,
   Drawer,
   IconButton,
   List,
   ListItem,
-  ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
   Typography,
-  Button,
-  useTheme,
-  useMediaQuery,
+  Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Dashboard,
-  Medication,
+  LocalPharmacy,
   Inventory,
   Analytics,
   People,
-  Settings,
   ExitToApp,
-  ChevronLeft,
 } from '@mui/icons-material';
-import { useAppContext } from '../../context/AppContext';
+import { useNavigate } from 'react-router-dom';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 
 const drawerWidth = 240;
 
-interface MenuItem {
-  text: string;
-  path: string;
-  icon: React.ReactNode;
-  roles: string[];
-}
-
-const menuItems: MenuItem[] = [
-  {
-    text: 'Dashboard',
-    path: '/admin',
-    icon: <Dashboard />,
-    roles: ['admin', 'pharmacist'],
-  },
-  {
-    text: 'Medicines',
-    path: '/admin/medicines',
-    icon: <Medication />,
-    roles: ['admin', 'pharmacist'],
-  },
-  {
-    text: 'Inventory',
-    path: '/admin/inventory',
-    icon: <Inventory />,
-    roles: ['admin', 'pharmacist'],
-  },
-  {
-    text: 'Analytics',
-    path: '/admin/analytics',
-    icon: <Analytics />,
-    roles: ['admin'],
-  },
-  {
-    text: 'Users',
-    path: '/admin/users',
-    icon: <People />,
-    roles: ['admin'],
-  },
-  {
-    text: 'Settings',
-    path: '/admin/settings',
-    icon: <Settings />,
-    roles: ['admin'],
-  },
-];
+const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
+  open?: boolean;
+}>(({ theme, open }) => ({
+  flexGrow: 1,
+  padding: theme.spacing(3),
+  transition: theme.transitions.create('margin', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  marginLeft: `-${drawerWidth}px`,
+  ...(open && {
+    transition: theme.transitions.create('margin', {
+      easing: theme.transitions.easing.easeOut,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+    marginLeft: 0,
+  }),
+}));
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [open, setOpen] = React.useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // In a real app, you would get the user role from your auth context
-  const userRole = 'admin';
+  const { signOut } = useAuthenticator();
 
   const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
+    setOpen(!open);
   };
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
-    if (isMobile) {
-      setMobileOpen(false);
-    }
-  };
-
-  const handleLogout = () => {
-    // Implement logout logic here
-    navigate('/login');
-  };
-
-  const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          Pharmacy Admin
-        </Typography>
-        {isMobile && (
-          <IconButton onClick={handleDrawerToggle}>
-            <ChevronLeft />
-          </IconButton>
-        )}
-      </Toolbar>
-      <Divider />
-      <List>
-        {menuItems
-          .filter((item) => item.roles.includes(userRole))
-          .map((item) => (
-            <ListItem key={item.text} disablePadding>
-              <ListItemButton
-                selected={location.pathname === item.path}
-                onClick={() => handleNavigation(item.path)}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton onClick={handleLogout}>
-            <ListItemIcon>
-              <ExitToApp />
-            </ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItemButton>
-        </ListItem>
-      </List>
-    </div>
-  );
+  const menuItems = [
+    { text: 'Medicines', icon: <LocalPharmacy />, path: '/admin/medicines' },
+    { text: 'Inventory', icon: <Inventory />, path: '/admin/inventory' },
+    { text: 'Analytics', icon: <Analytics />, path: '/admin/analytics' },
+    { text: 'Users', icon: <People />, path: '/admin/users' },
+  ];
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -157,77 +72,72 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          width: `calc(100% - ${open ? drawerWidth : 0}px)`,
+          ml: `${open ? drawerWidth : 0}px`,
+          transition: (theme) =>
+            theme.transitions.create(['margin', 'width'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.leavingScreen,
+            }),
         }}
       >
         <Toolbar>
           <IconButton
             color="inherit"
             aria-label="open drawer"
-            edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+            edge="start"
+            sx={{ mr: 2 }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find((item) => item.path === location.pathname)?.text ||
-              'Dashboard'}
+          <Typography variant="h6" noWrap component="div">
+            Pharmacy Management System
           </Typography>
-          <Button color="inherit" onClick={handleLogout}>
-            Logout
-          </Button>
         </Toolbar>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        {/* Mobile drawer */}
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        {/* Desktop drawer */}
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-      <Box
-        component="main"
+      <Drawer
         sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          width: drawerWidth,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+          },
         }}
+        variant="persistent"
+        anchor="left"
+        open={open}
       >
-        <Toolbar /> {/* This toolbar is for spacing below the AppBar */}
+        <Toolbar />
+        <Box sx={{ overflow: 'auto' }}>
+          <List>
+            {menuItems.map((item) => (
+              <ListItem
+                button
+                key={item.text}
+                onClick={() => navigate(item.path)}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItem>
+            ))}
+          </List>
+          <Divider />
+          <List>
+            <ListItem button onClick={() => signOut()}>
+              <ListItemIcon>
+                <ExitToApp />
+              </ListItemIcon>
+              <ListItemText primary="Sign Out" />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
+      <Main open={open}>
+        <Toolbar />
         {children}
-      </Box>
+      </Main>
     </Box>
   );
 };

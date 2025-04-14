@@ -4,10 +4,17 @@ export const createMedicine = /* GraphQL */ `
       id
       name
       description
-      price
       quantity
+      price
+      expiryDate
+      manufacturer
+      category
+      reorderLevel
+      lastUpdated
+      updatedBy
       createdAt
       updatedAt
+      isDeleted
     }
   }
 `;
@@ -18,10 +25,17 @@ export const updateMedicine = /* GraphQL */ `
       id
       name
       description
-      price
       quantity
+      price
+      expiryDate
+      manufacturer
+      category
+      reorderLevel
+      lastUpdated
+      updatedBy
       createdAt
       updatedAt
+      isDeleted
     }
   }
 `;
@@ -30,29 +44,73 @@ export const deleteMedicine = /* GraphQL */ `
   mutation DeleteMedicine($input: DeleteMedicineInput!) {
     deleteMedicine(input: $input) {
       id
-      name
-      description
-      price
-      quantity
-      createdAt
-      updatedAt
+      isDeleted
     }
   }
 `;
 
-export const updateInventory = /* GraphQL */ `
-  mutation UpdateInventory($input: UpdateInventoryInput!) {
-    updateInventory(input: $input) {
+export const createTransaction = /* GraphQL */ `
+  mutation CreateTransaction($input: CreateTransactionInput!) {
+    createTransaction(input: $input) {
       id
       medicineId
-      medicine {
-        id
-        name
-        description
-        price
-      }
       quantity
-      lastUpdated
+      totalAmount
+      customerName
+      customerPhone
+      attendantId
+      transactionDate
+      paymentMethod
+      createdAt
+      updatedAt
+      isDeleted
+    }
+  }
+`;
+
+export const updateTransaction = /* GraphQL */ `
+  mutation UpdateTransaction($input: UpdateTransactionInput!) {
+    updateTransaction(input: $input) {
+      id
+      medicineId
+      quantity
+      totalAmount
+      customerName
+      customerPhone
+      attendantId
+      transactionDate
+      paymentMethod
+      createdAt
+      updatedAt
+      isDeleted
+    }
+  }
+`;
+
+export const createInventoryAlert = /* GraphQL */ `
+  mutation CreateInventoryAlert($input: CreateInventoryAlertInput!) {
+    createInventoryAlert(input: $input) {
+      id
+      medicineId
+      alertType
+      message
+      status
+      createdAt
+      updatedAt
+      resolvedAt
+      resolvedBy
+      isDeleted
+    }
+  }
+`;
+
+export const resolveInventoryAlert = /* GraphQL */ `
+  mutation ResolveInventoryAlert($input: ResolveInventoryAlertInput!) {
+    resolveInventoryAlert(input: $input) {
+      id
+      status
+      resolvedAt
+      resolvedBy
     }
   }
 `;

@@ -1,6 +1,23 @@
-# Pharmacy App Deployment Guide
+# Pharmacy App
 
-This guide provides instructions for deploying the Pharmacy App using either AWS Amplify or AWS CloudFormation.
+A comprehensive pharmacy management system built with AWS Amplify and React.
+
+## Project Overview
+
+The Pharmacy App is a full-stack application that helps manage pharmacy inventory, sales, and customer data. It features role-based access control, real-time inventory tracking, and automated alerts for low stock and expiring medications.
+
+## Architecture
+
+The application uses a serverless architecture built on AWS:
+
+- Frontend: React with TypeScript
+- Backend: AWS AppSync (GraphQL API)
+- Authentication: Amazon Cognito
+- Database: Amazon DynamoDB
+- Storage: Amazon S3
+- Functions: AWS Lambda
+- Monitoring: CloudWatch
+- Deployment: AWS Amplify/CloudFormation
 
 ## Prerequisites
 
@@ -9,70 +26,169 @@ This guide provides instructions for deploying the Pharmacy App using either AWS
 - AWS Amplify CLI installed (`npm install -g @aws-amplify/cli`)
 - Git repository set up
 
-## Option 1: Deployment with AWS Amplify
+## Project Structure
 
-### 1. Initialize Amplify
+```
+newai/
+├── amplify/                 # Amplify backend configuration
+│   ├── auth/               # Authentication configuration
+│   ├── api/                # GraphQL API configuration
+│   ├── data/              # Data models and schema
+│   └── functions/         # Lambda functions
+├── pharmacy-app/           # Frontend React application
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── hooks/        # Custom React hooks
+│   │   ├── graphql/      # Generated GraphQL operations
+│   │   ├── models/       # TypeScript interfaces
+│   │   ├── utils/        # Utility functions
+│   │   └── tests/        # Unit and integration tests
+│   └── package.json
+├── infrastructure/         # CloudFormation templates
+└── amplify.yml            # Amplify build configuration
+```
 
+## Data Models
+
+### Medicine
+```typescript
+interface Medicine {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  price: number;
+  expiryDate: string;
+  manufacturer: string;
+  category: string;
+  reorderLevel: number;
+  lastUpdated: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+}
+```
+
+### Transaction
+```typescript
+interface Transaction {
+  id: string;
+  medicineId: string;
+  quantity: number;
+  totalAmount: number;
+  customerName?: string;
+  customerPhone?: string;
+  attendantId: string;
+  transactionDate: string;
+  paymentMethod: string;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+}
+```
+
+### InventoryAlert
+```typescript
+interface InventoryAlert {
+  id: string;
+  medicineId: string;
+  alertType: 'LOW_STOCK' | 'EXPIRING_SOON';
+  message: string;
+  status: 'PENDING' | 'RESOLVED';
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  isDeleted: boolean;
+}
+```
+
+## API Documentation
+
+### GraphQL Operations
+
+#### Queries
+- `listMedicines`: Fetch paginated list of medicines
+- `getMedicine`: Get medicine by ID
+- `searchMedicines`: Search medicines by name or category
+- `listTransactions`: Fetch paginated list of transactions
+- `getTransaction`: Get transaction by ID
+- `listInventoryAlerts`: Fetch paginated list of alerts
+
+#### Mutations
+- `createMedicine`: Create new medicine
+- `updateMedicine`: Update medicine details
+- `deleteMedicine`: Soft delete medicine
+- `createTransaction`: Create new transaction
+- `updateTransaction`: Update transaction details
+- `createInventoryAlert`: Create new inventory alert
+- `resolveInventoryAlert`: Resolve an alert
+
+#### Subscriptions
+- `onMedicineUpdated`: Real-time updates for medicine changes
+- `onInventoryAlertCreated`: Real-time notifications for new alerts
+- `onTransactionCreated`: Real-time updates for new transactions
+
+## Authentication and Authorization
+
+The application uses Amazon Cognito for authentication with the following features:
+
+- Email-based sign-up and sign-in
+- Multi-factor authentication (optional)
+- Password policies:
+  - Minimum length: 12 characters
+  - Requires numbers
+  - Requires special characters
+  - Requires uppercase and lowercase letters
+
+### User Groups and Permissions
+
+1. Admin Group
+   - Full access to all operations
+   - Can manage users and roles
+   - Access to analytics and reports
+
+2. Attendant Group
+   - Read access to medicines
+   - Can create and read transactions
+   - Can update medicine quantities
+   - Can create inventory alerts
+
+## Deployment
+
+### Option 1: AWS Amplify
+
+1. Initialize Amplify:
 ```bash
 cd newai
 amplify init
 ```
 
-Follow the prompts to configure your project:
-- Choose your environment name (e.g., dev, prod)
-- Choose your default editor
-- Choose "AWS profile" for authentication
-
-### 2. Configure Frontend
-
+2. Configure Frontend:
 ```bash
 cd pharmacy-app
 npm install
 ```
 
-### 3. Push Amplify Configuration
-
+3. Push Amplify Configuration:
 ```bash
 amplify push
 ```
 
-This will create all necessary backend resources.
+4. Deploy Frontend (Amplify Console):
+   - Go to AWS Amplify Console
+   - Click "New app" > "Host web app"
+   - Connect your repository
+   - Select branch to deploy
+   - Confirm build settings
+   - Click "Save and deploy"
 
-### 4. Deploy Frontend
+### Option 2: CloudFormation
 
-You can deploy the frontend in two ways:
+1. Update repository URL in `infrastructure/template.yaml`
 
-#### A. Using Amplify Console (Recommended)
-
-1. Go to AWS Amplify Console
-2. Click "New app" > "Host web app"
-3. Connect your repository
-4. Select the branch to deploy
-5. Confirm the build settings (they are already configured in amplify.yml)
-6. Click "Save and deploy"
-
-#### B. Using Amplify CLI
-
-```bash
-amplify publish
-```
-
-## Option 2: Deployment with CloudFormation
-
-### 1. Prepare the Infrastructure
-
-The CloudFormation template is located in `infrastructure/template.yaml`. It sets up:
-- Amplify application
-- Deployment configuration
-- Required IAM roles
-- Environment variables
-
-### 2. Deploy Using CloudFormation
-
-1. Update the repository URL in the template:
-   Open `infrastructure/template.yaml` and replace `YOUR_REPOSITORY_URL` with your actual repository URL.
-
-2. Deploy the stack:
+2. Deploy stack:
 ```bash
 aws cloudformation create-stack \
   --stack-name pharmacy-app-stack \
@@ -80,45 +196,81 @@ aws cloudformation create-stack \
   --parameters \
     ParameterKey=Environment,ParameterValue=dev \
     ParameterKey=BranchName,ParameterValue=main \
+    ParameterKey=AlertEmailEndpoint,ParameterValue=your-email@example.com \
   --capabilities CAPABILITY_IAM
 ```
 
-3. Monitor the deployment:
+## Monitoring and Alerts
+
+The application uses CloudWatch for monitoring with the following alarms:
+
+1. API Performance
+   - 4XX errors > 5 in 5 minutes
+   - API latency > 1000ms
+
+2. Database
+   - DynamoDB throttling events
+   - Table capacity utilization > 80%
+
+3. Authentication
+   - Failed authentication attempts > 10 in 5 minutes
+   - User pool changes
+
+4. Lambda Functions
+   - Error rate > 1%
+   - Duration > 10 seconds
+
+## Security Considerations
+
+1. Data Protection
+   - All data at rest is encrypted using KMS
+   - Sensitive data is stored in environment variables
+   - Regular data backups
+
+2. Access Control
+   - Least privilege IAM roles
+   - Role-based access control
+   - MFA for sensitive operations
+
+3. Network Security
+   - WAF enabled for production
+   - CORS configured appropriately
+   - API rate limiting
+
+4. Compliance
+   - Audit logging enabled
+   - Regular security patches
+   - Automated vulnerability scanning
+
+## Development Workflow
+
+1. Local Development
 ```bash
-aws cloudformation describe-stacks --stack-name pharmacy-app-stack
+cd pharmacy-app
+npm install
+npm run dev
 ```
 
-## Post-Deployment Steps
+2. Testing
+```bash
+# Run unit tests
+npm run test
 
-1. Configure environment variables in Amplify Console if needed
-2. Set up custom domains if required
-3. Configure build notifications
+# Run integration tests
+npm run test:integration
 
-## Project Structure
-
-```
-newai/
-├── amplify/           # Amplify backend configuration
-├── pharmacy-app/      # Frontend React application
-│   ├── src/          # Source code
-│   └── ...
-├── infrastructure/    # CloudFormation templates
-└── amplify.yml       # Amplify build configuration
+# Run e2e tests
+npm run test:e2e
 ```
 
-## Environment Variables
+3. Code Quality
+```bash
+# Run ESLint
+npm run lint
 
-The following environment variables need to be configured in your deployment:
-
-- `NODE_ENV`: Environment name (dev/prod)
-- Add any additional environment variables your application needs
-
-## Monitoring and Maintenance
-
-1. Monitor the application through AWS CloudWatch
-2. Set up alarms for important metrics
-3. Regular backup of data
-4. Monitor build and deployment logs in Amplify Console
+# Run TypeScript compiler
+npm run type-check
+```
 
 ## Troubleshooting
 
@@ -139,20 +291,12 @@ Common issues and solutions:
    - Verify API endpoints configuration
    - Check environment variables
 
-## Security Considerations
+## Support and Resources
 
-1. Always use environment variables for sensitive information
-2. Regularly rotate AWS access keys
-3. Use least privilege principle for IAM roles
-4. Enable WAF for production deployments
-5. Configure CORS appropriately
-
-## Support
-
-For issues and support:
-1. Check AWS Amplify documentation
-2. Review CloudFormation documentation
-3. Contact AWS Support if needed
+- [AWS Amplify Documentation](https://docs.amplify.aws/)
+- [CloudFormation Documentation](https://docs.aws.amazon.com/cloudformation/)
+- [React Documentation](https://reactjs.org/docs/getting-started.html)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
 
 ## License
 

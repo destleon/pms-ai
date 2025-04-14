@@ -1,17 +1,16 @@
-export interface Batch {
-  batchNumber: string;
-  quantity: number;
-  manufacturingDate: string;
-  expiryDate: string;
-}
-
 export interface Medicine {
-  id?: string;
+  id: string;
   name: string;
-  description: string;
+  description?: string;
+  quantity: number;
   price: number;
-  stock: number;
   expiryDate: string;
-  barcode: string;
-  batches: Batch[];
+  manufacturer: string;
+  category: string;
+  reorderLevel: number;
+  lastUpdated: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
 }

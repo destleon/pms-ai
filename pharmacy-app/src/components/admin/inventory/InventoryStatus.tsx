@@ -5,258 +5,155 @@ import {
   CardContent,
   Grid,
   Typography,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Button,
   Alert,
-  TableContainer,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Paper,
+  LinearProgress,
+  Chip,
 } from '@mui/material';
-import { FileDownload } from '@mui/icons-material';
-import { useInventoryContext } from '../../../context/InventoryContext';
-import { exportToCSV } from '../../../utils/exportUtils';
-
-interface InventoryItem {
-  id: string;
-  name: string;
-  stock: number;
-  category: string;
-  expiryDate: string;
-  status: 'In Stock' | 'Low Stock' | 'Out of Stock';
-  supplier: string;
-  lastUpdated: string;
-}
+import { API, graphqlOperation } from 'aws-amplify';
+import { listMedicines, listInventoryAlerts } from '../../../graphql/queries';
+import { Medicine } from '../../../types/medicine';
+import { InventoryAlert } from '../../../types/inventory';
 
 const InventoryStatus: React.FC = () => {
-  const { inventory, fetchInventory } = useInventoryContext();
-  const [filters, setFilters] = useState({
-    search: '',
-    category: 'all',
-    status: 'all',
-    supplier: 'all',
-  });
-
-  const [sortConfig, setSortConfig] = useState({
-    key: 'name',
-    direction: 'asc',
-  });
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [alerts, setAlerts] = useState<InventoryAlert[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchInventory();
+    fetchData();
   }, []);
 
-  const categories = ['Tablets', 'Syrups', 'Injections', 'Topical'];
-  const statuses = ['In Stock', 'Low Stock', 'Out of Stock'];
-  const suppliers = ['Supplier A', 'Supplier B', 'Supplier C'];
+  const fetchData = async () => {
+    try {
+      const [medicinesResult, alertsResult] = await Promise.all([
+        API.graphql(graphqlOperation(listMedicines)),
+        API.graphql(graphqlOperation(listInventoryAlerts)),
+      ]);
 
-  const handleFilterChange = (field: string, value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const handleSort = (key: string) => {
-    setSortConfig({
-      key,
-      direction:
-        sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc',
-    });
-  };
-
-  const filterInventory = (items: InventoryItem[]) => {
-    return items.filter((item) => {
-      const matchesSearch = item.name
-        .toLowerCase()
-        .includes(filters.search.toLowerCase());
-      const matchesCategory =
-        filters.category === 'all' || item.category === filters.category;
-      const matchesStatus =
-        filters.status === 'all' || item.status === filters.status;
-      const matchesSupplier =
-        filters.supplier === 'all' || item.supplier === filters.supplier;
-
-      return matchesSearch && matchesCategory && matchesStatus && matchesSupplier;
-    });
-  };
-
-  const sortInventory = (items: InventoryItem[]) => {
-    return [...items].sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (a[sortConfig.key] > b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-  };
-
-  const handleExportCSV = () => {
-    const filteredData = filterInventory(inventory);
-    exportToCSV(filteredData, 'inventory_status');
-  };
-
-  const filteredAndSortedInventory = sortInventory(filterInventory(inventory));
-
-  const getLowStockAlert = () => {
-    const lowStockItems = inventory.filter((item) => item.status === 'Low Stock');
-    if (lowStockItems.length > 0) {
-      return (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {lowStockItems.length} items are running low on stock
-        </Alert>
-      );
+      setMedicines(medicinesResult.data.listMedicines);
+      setAlerts(alertsResult.data.listInventoryAlerts);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching inventory data:', error);
+      setLoading(false);
     }
-    return null;
   };
+
+  const getStockStatus = (medicine: Medicine) => {
+    const percentage = (medicine.quantity / medicine.reorderLevel) * 100;
+    if (percentage <= 25) return 'critical';
+    if (percentage <= 50) return 'low';
+    if (percentage <= 75) return 'moderate';
+    return 'good';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'critical':
+        return 'error';
+      case 'low':
+        return 'warning';
+      case 'moderate':
+        return 'info';
+      case 'good':
+        return 'success';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStockPercentage = (medicine: Medicine) => {
+    return (medicine.quantity / medicine.reorderLevel) * 100;
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ width: '100%' }}>
+        <LinearProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      {getLowStockAlert()}
+      {/* Alerts Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Active Alerts
+        </Typography>
+        {alerts.length > 0 ? (
+          alerts.map((alert) => (
+            <Alert
+              key={alert.id}
+              severity={alert.alertType === 'LOW_STOCK' ? 'warning' : 'error'}
+              sx={{ mb: 2 }}
+            >
+              {alert.message}
+            </Alert>
+          ))
+        ) : (
+          <Alert severity="success">No active alerts</Alert>
+        )}
+      </Box>
 
+      {/* Inventory Grid */}
       <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">Inventory Status</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<FileDownload />}
-                  onClick={handleExportCSV}
+        {medicines.map((medicine) => (
+          <Grid item xs={12} sm={6} md={4} key={medicine.id}>
+            <Card>
+              <CardContent>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    mb: 2,
+                  }}
                 >
-                  Export CSV
-                </Button>
-              </Box>
-
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={3}>
-                  <TextField
-                    fullWidth
-                    label="Search"
-                    value={filters.search}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                  <Typography variant="h6">{medicine.name}</Typography>
+                  <Chip
+                    label={getStockStatus(medicine)}
+                    color={getStatusColor(getStockStatus(medicine)) as any}
+                    size="small"
                   />
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Category</InputLabel>
-                    <Select
-                      value={filters.category}
-                      label="Category"
-                      onChange={(e) => handleFilterChange('category', e.target.value)}
-                    >
-                      <MenuItem value="all">All Categories</MenuItem>
-                      {categories.map((category) => (
-                        <MenuItem key={category} value={category}>
-                          {category}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={filters.status}
-                      label="Status"
-                      onChange={(e) => handleFilterChange('status', e.target.value)}
-                    >
-                      <MenuItem value="all">All Statuses</MenuItem>
-                      {statuses.map((status) => (
-                        <MenuItem key={status} value={status}>
-                          {status}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Supplier</InputLabel>
-                    <Select
-                      value={filters.supplier}
-                      label="Supplier"
-                      onChange={(e) => handleFilterChange('supplier', e.target.value)}
-                    >
-                      <MenuItem value="all">All Suppliers</MenuItem>
-                      {suppliers.map((supplier) => (
-                        <MenuItem key={supplier} value={supplier}>
-                          {supplier}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
+                </Box>
 
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell onClick={() => handleSort('name')}>
-                        Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('stock')}>
-                        Stock {sortConfig.key === 'stock' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('category')}>
-                        Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('status')}>
-                        Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('expiryDate')}>
-                        Expiry Date {sortConfig.key === 'expiryDate' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('supplier')}>
-                        Supplier {sortConfig.key === 'supplier' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell onClick={() => handleSort('lastUpdated')}>
-                        Last Updated {sortConfig.key === 'lastUpdated' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredAndSortedInventory.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.stock}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell>
-                          <Typography
-                            color={
-                              item.status === 'Out of Stock'
-                                ? 'error'
-                                : item.status === 'Low Stock'
-                                ? 'warning.main'
-                                : 'success.main'
-                            }
-                          >
-                            {item.status}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{new Date(item.expiryDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{item.supplier}</TableCell>
-                        <TableCell>{new Date(item.lastUpdated).toLocaleDateString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+                <Typography color="textSecondary" gutterBottom>
+                  Category: {medicine.category}
+                </Typography>
+
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" color="textSecondary">
+                    Stock Level
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Box sx={{ width: '100%', mr: 1 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(getStockPercentage(medicine), 100)}
+                        color={getStatusColor(getStockStatus(medicine)) as any}
+                      />
+                    </Box>
+                    <Box sx={{ minWidth: 35 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        {medicine.quantity}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    Reorder Level: {medicine.reorderLevel}
+                  </Typography>
+                  <Typography variant="body2">
+                    Expiry Date: {new Date(medicine.expiryDate).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
     </Box>
   );
