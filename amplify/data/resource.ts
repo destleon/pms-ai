@@ -1,81 +1,108 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 
+// Custom validation patterns
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const PHONE_PATTERN = /^\+?[1-9]\d{1,14}$/;  // International phone number format
+
 const schema = a.schema({
   // Medicine inventory model
   Medicine: a
     .model({
-      name: a.string(),
-      description: a.string(),
-      quantity: a.integer(),
-      price: a.float(),
-      expiryDate: a.string(),
-      manufacturer: a.string(),
-      category: a.string(),
-      reorderLevel: a.integer(),
-      lastUpdated: a.string(),
-      updatedBy: a.string(),
+      name: a.string().required(),
+      description: a.string().required(),
+      quantity: a.integer().required(),
+      price: a.float().required(),
+      expiryDate: a.string().required(),
+      manufacturer: a.string().required(),
+      category: a.string().required(),
+      reorderLevel: a.integer().required(),
+      lastUpdated: a.string().required(),
+      updatedBy: a.string().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+      isDeleted: a.boolean().required().default(false),
     })
     .authorization([
       // Attendants can read and update quantities
-      a.allow('group', 'attendant', ['read', 'update']),
+      a.allow('group', 'attendant', ['read', 'update'], (r) => !r.isDeleted),
       // Admins have full access
       a.allow('group', 'admin', ['create', 'read', 'update', 'delete']),
-    ]),
+    ])
+    .index('byCategory', ['category', 'name'])
+    .index('byManufacturer', ['manufacturer', 'name'])
+    .index('byExpiryDate', ['expiryDate']),
 
   // Sales/Transaction model
   Transaction: a
     .model({
-      medicineId: a.string(),
-      quantity: a.integer(),
-      totalAmount: a.float(),
+      medicineId: a.string().required(),
+      quantity: a.integer().required(),
+      totalAmount: a.float().required(),
       customerName: a.string().optional(),
-      customerPhone: a.string().optional(),
-      attendantId: a.string(),
-      transactionDate: a.string(),
-      paymentMethod: a.string(),
+      customerPhone: a.string().optional().match(PHONE_PATTERN),
+      attendantId: a.string().required(),
+      transactionDate: a.datetime().required(),
+      paymentMethod: a.string().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+      isDeleted: a.boolean().required().default(false),
     })
     .authorization([
       // Attendants can create and read transactions
-      a.allow('group', 'attendant', ['create', 'read']),
+      a.allow('group', 'attendant', ['create', 'read'], (r) => !r.isDeleted),
       // Admins have full access
       a.allow('group', 'admin', ['create', 'read', 'update', 'delete']),
-    ]),
+    ])
+    .index('byAttendant', ['attendantId', 'transactionDate'])
+    .index('byDate', ['transactionDate'])
+    .index('byMedicine', ['medicineId', 'transactionDate']),
 
   // Inventory Alert model
   InventoryAlert: a
     .model({
-      medicineId: a.string(),
-      alertType: a.string(), // LOW_STOCK, EXPIRING_SOON
-      message: a.string(),
-      status: a.string(), // PENDING, RESOLVED
-      createdAt: a.string(),
-      resolvedAt: a.string().optional(),
+      medicineId: a.string().required(),
+      alertType: a.string().required(), // LOW_STOCK, EXPIRING_SOON
+      message: a.string().required(),
+      status: a.string().required(), // PENDING, RESOLVED
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+      resolvedAt: a.datetime().optional(),
       resolvedBy: a.string().optional(),
+      isDeleted: a.boolean().required().default(false),
     })
     .authorization([
       // Attendants can read and update alerts
-      a.allow('group', 'attendant', ['read', 'update']),
+      a.allow('group', 'attendant', ['read', 'update'], (r) => !r.isDeleted),
       // Admins have full access
       a.allow('group', 'admin', ['create', 'read', 'update', 'delete']),
-    ]),
+    ])
+    .index('byStatus', ['status', 'createdAt'])
+    .index('byMedicine', ['medicineId', 'status'])
+    .index('byAlertType', ['alertType', 'status']),
 
   // User Profile model
   UserProfile: a
     .model({
-      userId: a.string(),
-      name: a.string(),
-      email: a.string(),
-      phone: a.string(),
-      role: a.string(), // ADMIN, ATTENDANT
-      status: a.string(), // ACTIVE, INACTIVE
-      lastLogin: a.string(),
+      userId: a.string().required(),
+      name: a.string().required(),
+      email: a.string().required().match(EMAIL_PATTERN),
+      phone: a.string().required().match(PHONE_PATTERN),
+      role: a.string().required(), // ADMIN, ATTENDANT
+      status: a.string().required(), // ACTIVE, INACTIVE
+      lastLogin: a.datetime().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+      isDeleted: a.boolean().required().default(false),
     })
     .authorization([
-      // Users can read and update their own profile
-      a.allow('owner'),
+      // Users can read and update their own profile if not deleted
+      a.allow('owner', ['read', 'update'], (r) => !r.isDeleted),
       // Admins have full access
       a.allow('group', 'admin', ['create', 'read', 'update', 'delete']),
-    ]),
+    ])
+    .index('byEmail', ['email'])
+    .index('byRole', ['role', 'status'])
+    .index('byStatus', ['status', 'role']),
 });
 
 export type Schema = ClientSchema<typeof schema>;
@@ -115,4 +142,9 @@ Fetch records from the database and use them in your frontend component.
 // const { data: todos } = await client.models.Todo.list()
 
 // return <ul>{todos.map(todo => <li key={todo.id}>{todo.content}</li>)}</ul>
+
+
+
+
+
 
