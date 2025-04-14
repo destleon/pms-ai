@@ -1,0 +1,66 @@
+type Medicine @model @auth(rules: [{ allow: private }]) {
+  id: ID!
+  name: String!
+  description: String
+  price: Float!
+  quantity: Int!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type Inventory @model @auth(rules: [{ allow: private }]) {
+  id: ID!
+  medicineId: ID!
+  medicine: Medicine! @hasOne(fields: ["medicineId"])
+  quantity: Int!
+  lastUpdated: AWSDateTime!
+}
+
+type Query {
+  listMedicines: MedicineConnection!
+  getMedicine(id: ID!): Medicine
+  listInventory: InventoryConnection!
+  getInventory(id: ID!): Inventory
+}
+
+type Mutation {
+  createMedicine(input: CreateMedicineInput!): Medicine!
+  updateMedicine(input: UpdateMedicineInput!): Medicine!
+  deleteMedicine(input: DeleteMedicineInput!): Medicine!
+  updateInventory(input: UpdateInventoryInput!): Inventory!
+}
+
+type MedicineConnection {
+  items: [Medicine!]!
+  nextToken: String
+}
+
+type InventoryConnection {
+  items: [Inventory!]!
+  nextToken: String
+}
+
+input CreateMedicineInput {
+  name: String!
+  description: String
+  price: Float!
+  quantity: Int!
+}
+
+input UpdateMedicineInput {
+  id: ID!
+  name: String
+  description: String
+  price: Float
+  quantity: Int
+}
+
+input DeleteMedicineInput {
+  id: ID!
+}
+
+input UpdateInventoryInput {
+  id: ID!
+  medicineId: ID!
+  quantity: Int!
+}
