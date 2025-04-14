@@ -9,10 +9,13 @@ import {
   MenuItem,
   Typography,
   Box,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { useMedicineContext } from '../../../context/MedicineContext';
+import { useMedicine } from '../../../context/MedicineContext';
 import { Medicine, Batch } from '../../../types/medicine';
 import BarcodeScanner from '../../shared/BarcodeScanner';
 

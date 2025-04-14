@@ -3,6 +3,10 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AppProvider } from './context/AppContext';
+import { Amplify } from 'aws-amplify';
+import { withAuthenticator } from '@aws-amplify/ui-react';
+import '@aws-amplify/ui-react/styles.css';
+import awsconfig from './aws-exports';
 
 // Layout components
 import Layout from './components/shared/Layout';
@@ -51,6 +55,9 @@ const theme = createTheme({
   },
 });
 
+// Configure Amplify
+Amplify.configure(awsconfig);
+
 const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
@@ -84,4 +91,6 @@ const App: React.FC = () => {
   );
 };
 
-export default App;
+export default withAuthenticator(App);
+
+
