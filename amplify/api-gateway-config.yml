@@ -1,0 +1,149 @@
+openapi: 3.0.0
+info:
+  title: Pharmacy Management API
+  version: 1.0.0
+  description: API for pharmacy management system
+
+paths:
+  /inventory/{medicineId}:
+    get:
+      summary: Get inventory for a specific medicine
+      security:
+        - CognitoAuth: []
+      parameters:
+        - name: medicineId
+          in: path
+          required: true
+          schema:
+            type: string
+      x-amazon-apigateway-integration:
+        uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InventoryManagerFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+  /inventory:
+    post:
+      summary: Update inventory
+      security:
+        - CognitoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - medicineId
+                - batchId
+                - quantity
+              properties:
+                medicineId:
+                  type: string
+                batchId:
+                  type: string
+                quantity:
+                  type: number
+      x-amazon-apigateway-integration:
+        uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InventoryManagerFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+  /sales:
+    post:
+      summary: Process a sale
+      security:
+        - CognitoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+                - userId
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      medicineId:
+                        type: string
+                      quantity:
+                        type: number
+                      price:
+                        type: number
+                userId:
+                  type: string
+                paymentMethod:
+                  type: string
+      x-amazon-apigateway-integration:
+        uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SalesProcessorFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+    get:
+      summary: Get sales records
+      security:
+        - CognitoAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+      x-amazon-apigateway-integration:
+        uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SalesProcessorFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+  /reports:
+    post:
+      summary: Generate reports
+      security:
+        - CognitoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reportType
+              properties:
+                reportType:
+                  type: string
+                  enum: [sales, inventory, low-stock]
+                startDate:
+                  type: string
+                endDate:
+                  type: string
+      x-amazon-apigateway-integration:
+        uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReportGeneratorFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  securitySchemes:
+    CognitoAuth:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: cognito_user_pools
+      x-amazon-apigateway-authorizer:
+        type: cognito_user_pools
+        providerARNs:
+          - !Ref PharmacyUserPool

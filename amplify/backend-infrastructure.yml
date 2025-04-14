@@ -1,0 +1,392 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Pharmacy Management System - Serverless Backend Infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Environment name
+
+Resources:
+  # DynamoDB Tables
+  MedicinesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-Medicines
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: medicineId
+          AttributeType: S
+        - AttributeName: barcode
+          AttributeType: S
+        - AttributeName: categoryId
+          AttributeType: S
+        - AttributeName: expiryDate
+          AttributeType: S
+      KeySchema:
+        - AttributeName: medicineId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: BarcodeIndex
+          KeySchema:
+            - AttributeName: barcode
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: CategoryIndex
+          KeySchema:
+            - AttributeName: categoryId
+              KeyType: HASH
+            - AttributeName: expiryDate
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CategoriesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-Categories
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: categoryId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: categoryId
+          KeyType: HASH
+
+  SuppliersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-Suppliers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: supplierId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: supplierId
+          KeyType: HASH
+
+  SalesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-Sales
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: saleId
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: saleId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DateIndex
+          KeySchema:
+            - AttributeName: date
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: UserIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  InventoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-Inventory
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: medicineId
+          AttributeType: S
+        - AttributeName: batchId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: medicineId
+          KeyType: HASH
+        - AttributeName: batchId
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  # Lambda Functions
+  InventoryManagerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-inventory-manager
+      Handler: index.handler
+      Role: !GetAtt InventoryManagerRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            // Function implementation will be added
+            return {
+              statusCode: 200,
+              body: JSON.stringify('Hello from Inventory Manager')
+            };
+          };
+      Runtime: nodejs18.x
+      Timeout: 30
+      Environment:
+        Variables:
+          INVENTORY_TABLE: !Ref InventoryTable
+          MEDICINES_TABLE: !Ref MedicinesTable
+
+  SalesProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-sales-processor
+      Handler: index.handler
+      Role: !GetAtt SalesProcessorRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            // Function implementation will be added
+            return {
+              statusCode: 200,
+              body: JSON.stringify('Hello from Sales Processor')
+            };
+          };
+      Runtime: nodejs18.x
+      Timeout: 30
+      Environment:
+        Variables:
+          SALES_TABLE: !Ref SalesTable
+          INVENTORY_TABLE: !Ref InventoryTable
+
+  ReportGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-report-generator
+      Handler: index.handler
+      Role: !GetAtt ReportGeneratorRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            // Function implementation will be added
+            return {
+              statusCode: 200,
+              body: JSON.stringify('Hello from Report Generator')
+            };
+          };
+      Runtime: nodejs18.x
+      Timeout: 60
+      Environment:
+        Variables:
+          SALES_TABLE: !Ref SalesTable
+          INVENTORY_TABLE: !Ref InventoryTable
+
+  # IAM Roles
+  InventoryManagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-inventory-manager-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource: 
+                  - !GetAtt InventoryTable.Arn
+                  - !GetAtt MedicinesTable.Arn
+
+  SalesProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-sales-processor-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource: 
+                  - !GetAtt SalesTable.Arn
+                  - !GetAtt InventoryTable.Arn
+
+  ReportGeneratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-report-generator-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt SalesTable.Arn
+                  - !GetAtt InventoryTable.Arn
+
+  # API Gateway
+  PharmacyAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub ${Environment}-pharmacy-api
+      Description: Pharmacy Management System API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Cognito
+  PharmacyUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${Environment}-pharmacy-users
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+
+  PharmacyUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref PharmacyUserPool
+      ClientName: !Sub ${Environment}-pharmacy-app
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  # API Gateway Authorizer
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      RestApiId: !Ref PharmacyAPI
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !GetAtt PharmacyUserPool.Arn
+
+  # DynamoDB Stream to Lambda Trigger for Inventory Alerts
+  InventoryAlertFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-inventory-alert
+      Handler: index.handler
+      Role: !GetAtt InventoryAlertRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            // Function implementation will be added
+            return {
+              statusCode: 200,
+              body: JSON.stringify('Hello from Inventory Alert')
+            };
+          };
+      Runtime: nodejs18.x
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref LowStockAlertTopic
+
+  InventoryAlertRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-inventory-alert-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref LowStockAlertTopic
+
+  LowStockAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${Environment}-low-stock-alerts
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${PharmacyAPI}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref PharmacyUserPool
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref PharmacyUserPoolClient
+
+  MedicinesTableName:
+    Description: DynamoDB Medicines Table Name
+    Value: !Ref MedicinesTable
+
+  InventoryTableName:
+    Description: DynamoDB Inventory Table Name
+    Value: !Ref InventoryTable
+
+  SalesTableName:
+    Description: DynamoDB Sales Table Name
+    Value: !Ref SalesTable

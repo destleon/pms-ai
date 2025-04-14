@@ -1,0 +1,32 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - cd pharmacy-app
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: pharmacy-app/dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - pharmacy-app/node_modules/**/*
+    appRoot: pharmacy-app
+  - backend:
+      phases:
+        build:
+          commands:
+            - amplify generate
+            - amplify push --yes
+      artifacts:
+        baseDirectory: amplify
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
